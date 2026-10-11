@@ -1,12 +1,14 @@
+
 import { useState } from 'react'
 import { supabase } from './supabaseClient'
 
-function Login({ onLogin }) {
+
+function Login({ onLogin, onPrivacyPolicy }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
+  const [username, setUsername] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
-  const [confirmedMember, setConfirmedMember] = useState(false)
+  const [confirmedTerms, setConfirmedTerms] = useState(false)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -15,223 +17,344 @@ function Login({ onLogin }) {
     setMessage('')
     setLoading(true)
 
-    if (isSignUp) {
-      if (!fullName.trim()) {
-        setMessage('Please enter your full name.')
-        setLoading(false)
-        return
-      }
+    try {
+      if (isSignUp) {
+        if (!username.trim()) {
+          setMessage('Please choose a username or pseudonym.')
+          return
+        }
 
-      if (!confirmedMember) {
-        setMessage(
-          'Please confirm that you are a member of the STTA PGCE/PGTA 2026–27 cohort.'
-        )
-        setLoading(false)
-        return
-      }
+        if (!confirmedTerms) {
+          setMessage(
+            'Please read and accept the privacy and contribution rules before creating an account.'
+          )
+          return
+        }
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              username: username.trim(),
+            },
           },
-        },
-      })
+        })
 
-      if (error) {
-        setMessage(error.message)
-      } else if (data.session) {
-        onLogin(data.user)
+        if (error) {
+          setMessage(error.message)
+        } else if (data.session) {
+          onLogin(data.user)
+        } else {
+          setMessage(
+            'Account created. Please check your email for a confirmation message before signing in.'
+          )
+        }
       } else {
-        setMessage(
-          'Account created. Check your email to confirm your account.'
-        )
-      }
-    } else {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+        const { data, error } =
+          await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          })
 
-      if (error) {
-        setMessage(error.message)
-      } else {
-        onLogin(data.user)
+        if (error) {
+          setMessage(error.message)
+        } else {
+          onLogin(data.user)
+        }
       }
+    } catch {
+      setMessage(
+        'Something went wrong. Please try again.'
+      )
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const switchMode = () => {
     setIsSignUp(!isSignUp)
     setMessage('')
-    setFullName('')
-    setConfirmedMember(false)
+    setUsername('')
+    setConfirmedTerms(false)
+  }
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      setMessage('Please enter your email address first.')
+      return
+    }
+
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const { error } =
+        await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          {
+            redirectTo: `${window.location.origin}/?reset=true`,
+          }
+        )
+
+      if (error) {
+        setMessage(
+          `Password reset failed: ${error.message}`
+        )
+      } else {
+        setMessage(
+          'If an account exists for that email, a password reset email has been sent.'
+        )
+      }
+    } catch {
+      setMessage(
+        'Something went wrong. Please try again.'
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-
         <div style={styles.accentBar}></div>
 
-        <p style={styles.kicker}>PGCE COHORT KEEPSAKE</p>
+        <p style={styles.kicker}>
+          PGCE COHORT KEEPSAKE
+        </p>
 
         <h1 style={styles.title}>
-          {isSignUp ? 'Join the keepsake.' : 'Welcome back.'}
+          {isSignUp
+            ? 'Join the keepsake.'
+            : 'Welcome back.'}
         </h1>
 
         <p style={styles.intro}>
           {isSignUp
-            ? 'Create your account to add your own stories to our shared keepsake.'
+            ? 'Create an account to add your own stories to our shared keepsake.'
             : 'Sign in to access your cohort keepsake.'}
         </p>
 
         {isSignUp && (
           <div style={styles.privateNotice}>
             <div style={styles.privateTitle}>
-              🔒 Your name stays private
+              🔒 Your account and privacy
             </div>
 
             <p style={styles.privateText}>
-  Please use an email address that you expect to keep access to,
-  rather than one that may change and cause login issues when your training ends.
-  Your account and contributions will remain linked to you
-  throughout and beyond the training year.
-</p>
+              Choose a username or pseudonym that does not
+              identify you. Use a personal email address that
+              you can access to create and manage your account.
+              Your email address is used for account purposes
+              and is not intended to be displayed alongside
+              your contributions to other users.
+            </p>
+
             <p style={styles.privateText}>
-  Please enter your <strong>full name exactly as registered with
-  STTA</strong>. This is used for account identification only and
-  <strong> will not appear alongside your contributions </strong>
-   or be displayed to other cohort members to other members or on the
-  public-facing keepsake.
-</p>
+              The website uses Supabase to manage accounts
+              and store website data. The back end stores
+              your email address, username in your account
+              information, and an account identifier.
+              Supabase may also process authentication
+              records, timestamps and technical information
+              needed to operate and secure the service.
+              Contributions may be linked to your account
+              internally, even when you use a pseudonym.
+            </p>
+
             <p style={styles.privateText}>
-  Your contributions are linked securely to your account so that
-  you can identify and manage your own submissions when you are
-  signed in. Please keep access to your account so you can return
-  to your contributions in the future and if you wish, keep adding to them!
+              <strong>
+                STRICT CONTRIBUTION RULE:
+              </strong>{' '}
+              Do not submit anything that identifies, or
+              could help someone identify, you, another
+              person, a child or pupil, a parent, colleague,
+              school, placement, training provider or any
+              other organisation.
+            </p>
+
+            <p style={styles.privateText}>
+              This rule applies even when details seem vague,
+              indirect or harmless on their own. Combinations
+              of details can identify someone. Do not include
+              names, initials, identifiable quotations,
+              distinctive incidents, dates, locations or
+              combinations of contextual details that could
+              reveal someone's identity. If in doubt, leave
+              it out.
+            </p>
+
+            <p style={styles.privateText}>
+              Contributions may not be checked before other
+              users can see them. Breaches may result in
+              contributions being removed or deleted, an
+              account being suspended or banned, and
+              potential escalation where appropriate.
+            </p>
+
+            <p style={styles.privateText}>
+              This is an independent, voluntary keepsake.
+              It is not an official training-provider
+              platform, formal safeguarding reporting route
+              or disciplinary service. Contributors are
+              responsible for what they submit. The
+              administrator does not undertake to investigate
+              every contribution or act on behalf of the
+              training provider. This does not remove any
+              legal obligations that may apply to the
+              website administrator.
+            </p>
+
+            <p style={styles.privateText}>
+              The administrator can access account
+              information held in the back end. Information
+              may also be processed by Supabase and retained
+              in technical records or backups. The website
+              does not promise complete anonymity or
+              absolute security.
+            </p>
+
+            
+<p style={styles.privateText}>
+  Please read the{" "}
+  <button
+    type="button"
+    onClick={onPrivacyPolicy}
+    style={{
+      background: "none",
+      border: "none",
+      padding: 0,
+      color: "#1746d1",
+      textDecoration: "underline",
+      cursor: "pointer",
+      font: "inherit",
+    }}
+  >
+    Privacy Policy
+  </button>{" "}
+  before registering. It explains how information
+  is used, stored, retained and how to contact the
+  administrator about your personal data.
 </p>
+
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-
+        <form
+          onSubmit={handleSubmit}
+          style={styles.form}
+        >
           {isSignUp && (
             <label style={styles.label}>
-              Full name
+              Username or pseudonym
+
               <input
                 type="text"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
+                value={username}
+                onChange={(event) =>
+                  setUsername(event.target.value)
+                }
                 required
-                autoComplete="name"
+                minLength={2}
+                maxLength={30}
+                autoComplete="nickname"
                 style={styles.input}
-                placeholder="Your full name"
+                placeholder="Choose a username"
               />
+
               <span style={styles.helperText}>
-                Please use your real name rather than a nickname.
+                Do not use your real name, school, placement
+                or any other identifying information.
               </span>
             </label>
           )}
 
           <label style={styles.label}>
-            Email
+            Personal email address
+
             <input
               type="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               required
               autoComplete="email"
               style={styles.input}
               placeholder="your@email.com"
             />
+
+            <span style={styles.helperText}>
+              Use an email address you can access for
+              account confirmation and password recovery.
+            </span>
           </label>
 
           <label style={styles.label}>
             Password
+
             <input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               required
               minLength={6}
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              autoComplete={
+                isSignUp
+                  ? 'new-password'
+                  : 'current-password'
+              }
               style={styles.input}
               placeholder="At least 6 characters"
             />
-           </label>
+          </label>
 
           {!isSignUp && (
             <button
               type="button"
-              onClick={async () => {
-  if (!email.trim()) {
-    setMessage("Please enter your email address first.");
-    return;
-  }
-
-  setLoading(true);
-  setMessage("");
-
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    email.trim(),
-    {
-      redirectTo: `${window.location.origin}/?reset=true`,
-    }
-  );
-
-  if (error) {
-    setMessage(`Password reset failed: ${error.message}`);
-  } else {
-    setMessage(
-      "If an account exists for that email, a password reset email has been sent."
-    );
-  }
-
-  setLoading(false);
-}}
-              style={{
-                alignSelf: "flex-end",
-                marginTop: "-10px",
-                marginBottom: "8px",
-                padding: "0",
-                border: "none",
-                background: "transparent",
-                color: "#1746d1",
-                cursor: "pointer",
-                fontFamily: "Arial, Helvetica, sans-serif",
-                fontSize: "12px",
-                fontWeight: "900",
-                textDecoration: "underline",
-              }}
+              onClick={handlePasswordReset}
+              disabled={loading}
+              style={styles.resetButton}
             >
               Forgot your password?
             </button>
           )}
 
           {isSignUp && (
-            <label style={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={confirmedMember}
-                onChange={(event) =>
-                  setConfirmedMember(event.target.checked)
-                }
-                style={styles.checkbox}
-              />
+            <div style={styles.termsBox}>
+              <p style={styles.termsHeading}>
+                Required agreement
+              </p>
 
-             <span>
-  I confirm that I am a member of the{' '}
-  <strong>STTA PGCE/PGTA 2026–27 cohort</strong> and that I have
-  entered my full name exactly as registered with STTA. I understand
-  that my account and contributions will remain linked to me and may
-  remain accessible beyond the training year.
-</span>
-            </label>
+              <label style={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={confirmedTerms}
+                  onChange={(event) =>
+                    setConfirmedTerms(event.target.checked)
+                  }
+                  required
+                  style={styles.checkbox}
+                />
+
+                <span>
+                  I confirm that I have read and agree to
+                  the Privacy Policy and the sign-up and
+                  contribution rules above. I will not
+                  submit content that identifies or could
+                  help identify any person, child, school,
+                  placement, training provider or
+                  organisation, even indirectly. I
+                  understand that breaches may result in
+                  content removal, account suspension or
+                  a ban, and potential escalation where
+                  appropriate.
+                </span>
+              </label>
+            </div>
           )}
 
           <button
@@ -248,11 +371,13 @@ function Login({ onLogin }) {
                 ? 'Create account'
                 : 'Sign in'}
           </button>
-
         </form>
 
         {message && (
-          <p style={styles.message}>
+          <p
+            role="status"
+            style={styles.message}
+          >
             {message}
           </p>
         )}
@@ -266,7 +391,6 @@ function Login({ onLogin }) {
             ? 'Already have an account? Sign in'
             : 'Need an account? Create one'}
         </button>
-
       </div>
     </div>
   )
@@ -386,15 +510,31 @@ const styles = {
     fontSize: '11px',
     fontWeight: 'normal',
     color: '#5b6075',
+    lineHeight: '1.5',
+  },
+
+  termsBox: {
+    margin: '8px 0 20px',
+    padding: '14px',
+    border: '2px solid #101a35',
+    borderRadius: '7px',
+    background: '#ffffff',
+  },
+
+  termsHeading: {
+    margin: '0 0 10px',
+    fontSize: '13px',
+    fontWeight: '900',
+    color: '#101a35',
   },
 
   checkboxRow: {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '10px',
-    margin: '4px 0 20px',
-    fontSize: '13px',
-    lineHeight: '1.5',
+    margin: '0',
+    fontSize: '12px',
+    lineHeight: '1.6',
     color: '#28304d',
     cursor: 'pointer',
   },
@@ -402,10 +542,26 @@ const styles = {
   checkbox: {
     width: '18px',
     height: '18px',
-    marginTop: '1px',
+    marginTop: '2px',
     flexShrink: 0,
     accentColor: '#1746d1',
     cursor: 'pointer',
+  },
+
+  resetButton: {
+    display: 'block',
+    marginTop: '-10px',
+    marginBottom: '19px',
+    marginLeft: 'auto',
+    padding: '0',
+    border: 'none',
+    background: 'transparent',
+    color: '#1746d1',
+    cursor: 'pointer',
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: '12px',
+    fontWeight: '900',
+    textDecoration: 'underline',
   },
 
   primaryButton: {
