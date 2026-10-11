@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import Login from "./Login";
 import ContributionForm from "./ContributionForm";
 import SafeguardingNotice from "./SafeguardingNotice";
+import PrivacyPolicy from "./PrivacyPolicy";
 
 const classroomQuotes = [
   "Miss, I wasn't talking. I was just telling him what you said.",
@@ -116,12 +117,8 @@ function findSubjectArea(subject) {
 }
 
 function App() {
-  const [view, setView] = useState(
-  () => localStorage.getItem("pgce-keepsake-view") || "home"
-);
-useEffect(() => {
-  localStorage.setItem("pgce-keepsake-view", view);
-}, [view]);
+ const [view, setView] = useState("home");
+ const [isViewingPrivacyPolicy, setIsViewingPrivacyPolicy] = useState(false);
   const [user, setUser] = useState(null);
   const [isResettingPassword, setIsResettingPassword] = useState(
   () => new URLSearchParams(window.location.search).get("reset") === "true"
@@ -217,10 +214,9 @@ useEffect(() => {
 
     const loadQuotes = async () => {
       const { data, error } = await supabase
-        .from("quotes")
+        .from("public_quotes")
         .select("*")
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
+              .order("created_at", { ascending: false })
         .range(0, 23);
 
       if (error) {
@@ -237,16 +233,14 @@ useEffect(() => {
     loadQuotes();
   }, [user]);
 
-  const loadMoreQuotes = async () => {
-    if (!hasMoreQuotes) return;
+ const loadMoreQuotes = async () => {
+  if (!hasMoreQuotes) return;
 
-    const { data, error } = await supabase
-      .from("quotes")
-      .select("*")
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .range(quotes.length, quotes.length + 23);
-
+  const { data, error } = await supabase
+    .from("public_quotes")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .range(quotes.length, quotes.length + 23);
     if (error) {
       setMessage(error.message);
       return;
@@ -362,11 +356,6 @@ if (error) {
 
   setSaving(false);
 
-  setEditingQuote(null);
-  setView("browse");
-  setMessage("Your contribution has been deleted.");
-
-  setSaving(false);
 }; 
                                       const handleUpdate = async (event) => {
                                         event.preventDefault();
@@ -497,7 +486,22 @@ const changeEmail = async () => {
   }, [memoryPaused, quotes.length]);
 
   const memoryQuotes = useMemo(() => {
-    if (!quotes.length) return [];
+  const safeQuotes = quotes.filter(Boolean);
+
+  if (!safeQuotes.length) return [];
+
+  const visible = [];
+
+  for (let i = 0; i < Math.min(3, safeQuotes.length); i++) {
+    const index =
+      (memoryStart + i) % safeQuotes.length;
+
+    visible.push(safeQuotes[index]);
+  }
+
+  return visible;
+}, [quotes, memoryStart]); {}
+    if (!quotes.length) return []; 
 
     const visible = [];
 
@@ -509,7 +513,7 @@ const changeEmail = async () => {
     }
 
     return visible;
-  }, [quotes, memoryStart]);
+  } [quotes, memoryStart];
 
   const moveMemory = (direction) => {
     if (quotes.length <= 3) return;
@@ -524,11 +528,12 @@ const changeEmail = async () => {
       return current <= 0 ? maxStart : current - 1;
     });
   };
-
+    console.error("=== APP.JSX VERSION TEST ===");
   const filteredQuotes = useMemo(() => {
+    console.log("FILTERED INPUT:", quotes);
     const search = searchTerm.trim().toLowerCase();
 
-    return quotes.filter((item) => {
+    return quotes.filter(Boolean).filter((item) => {
       if (showMineOnly && item.user_id !== user?.id) {
         return false;
       }
@@ -619,26 +624,24 @@ const changeEmail = async () => {
     />
   );
 }
-
-if (!user) {
+if (isViewingPrivacyPolicy) {
   return (
-    <Login
-      onLogin={(loggedInUser) =>
-        setUser(loggedInUser)
-      }
+    <PrivacyPolicy
+      onBack={() => setIsViewingPrivacyPolicy(false)}
     />
   );
 }
-
-  if (!user) {
-    return (
-      <Login
-        onLogin={(loggedInUser) =>
-          setUser(loggedInUser)
-        }
-      />
-    );
+if (!user) {
+  return (
+    <Login
+  onLogin={(loggedInUser) =>
+    setUser(loggedInUser)
   }
+            onPrivacyPolicy={() => setIsViewingPrivacyPolicy(true)}
+/>
+  );
+}
+
 
   return (
     <div style={styles.page}>
@@ -910,17 +913,30 @@ if (!user) {
 
             <div style={styles.formShell}>
               <ContributionForm
-                user={user}
-                onSaved={(newQuote) => {
-                  setQuotes((current) => [
-                    newQuote,
-                    ...current,
-                  ]);
+  user={user}
+  onSaved={async () => {
+    const { data, error } = await supabase
+      .from("public_quotes")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(0, 23);
 
-                  setView("browse");
-                  setSafeguardingAccepted(false);
-                }}
-              />
+    if (error) {
+      console.error("Error refreshing quotes:", error);
+      setMessage(error.message);
+    } else {
+      const loadedQuotes = data ?? [];
+      console.log("LOADED QUOTES:", loadedQuotes);
+
+    console.log("BEFORE SET QUOTES:", loadedQuotes);
+setQuotes(loadedQuotes.filter(Boolean));
+      setHasMoreQuotes(loadedQuotes.length === 24);
+    }
+
+    setView("browse");
+    setSafeguardingAccepted(false);
+  }}
+/>
             </div>
 
           </section>
@@ -1021,6 +1037,7 @@ if (!user) {
                 <div style={styles.memoryStreamTrack}>
 
                   {memoryQuotes.map((item, index) => {
+                    console.log("MEMORY ITEM:", index, item);
 
                     const colours = [
                       "#1746d1",
@@ -2266,16 +2283,19 @@ if (!user) {
               </p>
 
               <p>
-                It is <strong>not an official STTA or NIOT platform,
+                It is <strong>not an official training platform,
                 publication, resource or communication channel</strong>,
                 and it has not been developed on behalf of, commissioned
-                by, or endorsed by either training provider.
+                by, or endorsed by any training provider.
               </p>
 
               <p>
-                The inclusion of STTA and/or NIOT simply identifies the
-                training context of our cohort. It does not imply that
-                either provider has created, approved, reviewed or adopted
+                You are required to register with your <strong>full name</strong> for <strong>accountability and 
+                safeguarding purposes only. </strong> Anything that is found to have broken the conditions and usage agreement when partaking
+                in this project will be raised and escalated immediately with your training provider. 
+                Your information remains anonymous and stored securely and used  only within the scope of this project
+
+                , approved, reviewed or adopted
                 this project.
               </p>
 
@@ -2284,7 +2304,7 @@ if (!user) {
                 represent their own experiences, memories, humour,
                 observations and personal viewpoints. They should not be
                 interpreted as representing the views, policies, teaching,
-                guidance or professional opinions of STTA, NIOT, their
+                guidance or professional opinions of a training, their
                 staff, tutors, mentors, placement schools or any other
                 educational professional associated with our training.
               </p>
@@ -2305,8 +2325,8 @@ if (!user) {
               <p>
                 The project is independently maintained by a trainee teacher
                 for the benefit of the cohort and is separate from the
-                systems, policies and official communications of STTA and
-                NIOT.
+                systems, policies and official communications of any training provider.
+              .
               </p>
             </div>
 
@@ -2323,7 +2343,7 @@ if (!user) {
 
     </div>
   );
-};
+;
 function ResetPasswordForm({ onComplete }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
